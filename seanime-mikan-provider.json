@@ -22,22 +22,6 @@
             }
         ]
     },
-    "plugin": {
-        "version": "1",
-        "permissions": {
-            "scopes": [],
-            "allow": {
-                "networkAccess": {
-                    "allowedDomains": [
-                        "https://api.bgm.tv/search/subject/*",
-                        "https://raw.githubusercontent.com/xiaoyvyv/bangumi-data/main/data/mikan/bangumi-mikan.json",
-                        "https://mikanani.me/*"
-                    ],
-                    "reasoning": "To fetch anime data and torrent information from mikanani.me and related APIs for smart analysis."
-                }
-            }
-        }
-    },
     "isDevelopment": false,
     "payloadURI": "https://raw.githubusercontent.com/roogue/seanime-mikan-provider/refs/heads/main/index.ts"
 }
