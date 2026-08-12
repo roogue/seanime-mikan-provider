@@ -8,6 +8,7 @@
     "type": "anime-torrent-provider",
     "language": "typescript",
     "lang": "中文",
+    "icon": "https://raw.githubusercontent.com/roogue/seanime-mikan-provider/refs/heads/main/assets/mikan-icon.png",
     "readme": "",
     "notes": "",
     "userConfig": {
