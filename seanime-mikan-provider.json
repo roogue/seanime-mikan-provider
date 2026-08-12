@@ -9,7 +9,7 @@
     "language": "typescript",
     "lang": "中文",
     "icon": "https://raw.githubusercontent.com/roogue/seanime-mikan-provider/refs/heads/main/assets/mikan-icon.png",
-    "readme": "",
+    "readme": "https://raw.githubusercontent.com/roogue/seanime-mikan-provider/refs/heads/main/README.md",
     "notes": "",
     "userConfig": {
         "requiresConfig": false,
