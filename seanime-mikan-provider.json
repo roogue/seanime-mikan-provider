@@ -2,7 +2,7 @@
     "id": "seanime-mikan-provider",
     "name": "Mikan Smart Provider",
     "description": "Anime torrent provider extension scraping search and swarm data from mikanani.me",
-    "manifestURI": "",
+    "manifestURI": "https://raw.githubusercontent.com/roogue/seanime-mikan-provider/refs/heads/main/seanime-mikan-provider.json",
     "version": "1.0.0",
     "author": "roogue",
     "type": "anime-torrent-provider",
