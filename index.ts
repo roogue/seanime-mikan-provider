@@ -147,7 +147,84 @@ class Provider {
   }
 
   async getTorrentMagnetLink(torrent: AnimeTorrent): Promise<string> {
-    return torrent.magnetLink || "";
+    if (torrent.magnetLink) {
+      return torrent.magnetLink;
+    }
+
+    const targetUrl = torrent.downloadUrl || torrent.link;
+    if (!targetUrl) {
+      console.log("[Magnet] No download URL provided.");
+      return "";
+    }
+
+    console.log("[Magnet] Fetching torrent file from:", targetUrl);
+    try {
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        console.log(
+          "[Magnet] Failed to download torrent file. Status:",
+          $toString(response.status),
+        );
+        return "";
+      }
+
+      const rawText = response.text();
+
+      // Bypass Buffer completely. Use CryptoJS to safely encode the binary text to Base64
+      const rawArray = CryptoJS.enc.Utf8.parse(rawText);
+      const base64Content = CryptoJS.enc.Base64.stringify(rawArray);
+
+      let magnet = "";
+      try {
+        // @ts-ignore - Bypassing strict TS checks
+        magnet = $torrentUtils.getMagnetLinkFromTorrentData(base64Content);
+      } catch (err) {
+        console.log("[Magnet] $torrentUtils threw an error:", $toString(err));
+      }
+
+      if (magnet) {
+        console.log("[Magnet] Successfully extracted magnet link via utility.");
+        return magnet;
+      }
+
+      // Fallback for files with injected hashes
+      console.log("[Magnet] Utility failed, attempting regex fallback...");
+      return this.extractInjectedMagnet(base64Content, torrent.name);
+    } catch (err) {
+      console.log("[Magnet] Error in magnet link generation:", $toString(err));
+      return "";
+    }
+  }
+
+  // Fallback method to extract magnet link from specially formatted torrent files
+  // Makin torrent are somehow injected with a 40-character hash in the binary data, so we can regex it out
+  private extractInjectedMagnet(
+    base64Data: string,
+    torrentName: string,
+  ): string {
+    try {
+      const binaryArray = CryptoJS.enc.Base64.parse(base64Data);
+      const binaryString = CryptoJS.enc.Latin1.stringify(binaryArray);
+
+      // Search for the 40-character hex hash
+      const hashMatch = binaryString.match(/4:hash40:([a-f0-9]{40})/i);
+
+      if (hashMatch && hashMatch[1]) {
+        const infoHash = hashMatch[1];
+        console.log(
+          "[MagnetFallback] Successfully extracted injected hash:",
+          infoHash,
+        );
+
+        const encodedName = encodeURIComponent(torrentName);
+        return `magnet:?xt=urn:btih:${infoHash}&dn=${encodedName}`;
+      }
+    } catch (err) {
+      console.log("[MagnetFallback] Regex extraction failed:", $toString(err));
+    }
+
+    console.log("[MagnetFallback] Could not find injected hash.");
+    return "";
   }
 
   async getLatest(): Promise<AnimeTorrent[]> {
@@ -224,11 +301,11 @@ class Provider {
 
       // Standardize output mappings
       let size = 0;
-      let downloadUrl = "";
+      let torrentLink = "";
       if (item.enclosures && item.enclosures.length > 0) {
         const len = parseInt($toString(item.enclosures[0].length || "0"), 10);
         if (!isNaN(len)) size = len;
-        downloadUrl = $toString(item.enclosures[0].url || "").trim();
+        torrentLink = $toString(item.enclosures[0].url || "").trim();
       }
 
       const torrent: AnimeTorrent = {
@@ -239,9 +316,8 @@ class Provider {
         seeders: score, // Use seeders to store score for sorting later lol #Hackerman
         leechers: 0,
         downloadCount: 0,
-        // link: $toString(item.link || "").trim(),
-        link: downloadUrl,
-        downloadUrl: downloadUrl,
+        link: torrentLink,
+        downloadUrl: torrentLink,
         resolution: meta.video_resolution || "",
         episodeNumber: parsedEpisode,
         releaseGroup: meta.release_group || "",
