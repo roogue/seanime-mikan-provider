@@ -318,11 +318,19 @@ class Provider {
 
       // Standardize output mappings
       let size = 0;
-      let torrentLink = "";
+      let downloadUrl = "";
+      let extractedHash = "";
       if (item.enclosures && item.enclosures.length > 0) {
         const len = parseInt($toString(item.enclosures[0].length || "0"), 10);
         if (!isNaN(len)) size = len;
-        torrentLink = $toString(item.enclosures[0].url || "").trim();
+
+        downloadUrl = $toString(item.enclosures[0].url || "").trim();
+
+        // Extract the 40-character hex hash directly from the Mikanani URL!
+        const hashMatch = downloadUrl.match(/([a-f0-9]{40})\.torrent/i);
+        if (hashMatch && hashMatch[1]) {
+          extractedHash = hashMatch[1].toLowerCase();
+        }
       }
 
       const torrent: AnimeTorrent = {
@@ -333,13 +341,15 @@ class Provider {
         seeders: score, // Use seeders to store score for sorting later lol #Hackerman
         leechers: 0,
         downloadCount: 0,
-        link: torrentLink,
-        downloadUrl: torrentLink,
+        link: downloadUrl,
+        downloadUrl: downloadUrl,
         resolution: meta.video_resolution || "",
         episodeNumber: parsedEpisode,
         releaseGroup: meta.release_group || "",
         isBestRelease: false,
         confirmed: confirmed,
+        infoHash: extractedHash || undefined,
+        magnetLink: extractedHash ? `magnet:?xt=urn:btih:${extractedHash}` : undefined,
       };
 
       results.push({ torrent, score });
