@@ -9,10 +9,7 @@ class Provider {
   getSettings(): AnimeProviderSettings {
     return {
       canSmartSearch: true,
-      smartSearchFilters: [
-        "episodeNumber",
-        "resolution",
-      ],
+      smartSearchFilters: ["episodeNumber", "resolution"],
       supportsAdult: false,
       type: "main",
     };
@@ -103,13 +100,46 @@ class Provider {
       return [];
     }
 
-    const rssItems = await this.getTorrentsForMikanId(mikanId);
-    if (!rssItems || rssItems.length === 0) {
-      console.log("[SmartSearch] Aborting search: No RSS items found.");
+    const prefSubgroupsStr = $getUserPreference("preferred_subgroups");
+    if (prefSubgroupsStr) {
+      const subgroups = prefSubgroupsStr
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      for (const subgroupId of subgroups) {
+        console.log("[SmartSearch] Searching preferred subgroup:", subgroupId);
+        const rssItems = await this.fetchMikanRss(mikanId, subgroupId);
+        if (rssItems && rssItems.length > 0) {
+          const results = this.parseAndScoreTorrents(rssItems, opts);
+          if (results.length > 0) {
+            console.log(
+              "[SmartSearch] Found matching episode in preferred subgroup:",
+              subgroupId,
+            );
+            return results;
+          }
+          console.log(
+            "[SmartSearch] Subgroup",
+            subgroupId,
+            "had RSS items but none matched the requested episode.",
+          );
+        }
+      }
+      console.log(
+        "[SmartSearch] No preferred subgroup contained the target episode. Falling back to search all.",
+      );
+    }
+
+    const allRssItems = await this.fetchMikanRss(mikanId);
+    if (!allRssItems || allRssItems.length === 0) {
+      console.log(
+        "[SmartSearch] Aborting search: No RSS items found in global search.",
+      );
       return [];
     }
 
-    return this.parseAndScoreTorrents(rssItems, opts);
+    return this.parseAndScoreTorrents(allRssItems, opts);
   }
 
   async getTorrentInfoHash(torrent: AnimeTorrent): Promise<string> {
@@ -235,40 +265,6 @@ class Provider {
       "torrents.",
     );
     return results.map((r) => r.torrent);
-  }
-
-  private async getTorrentsForMikanId(mikanId: string): Promise<any[]> {
-    const prefSubgroupsStr = $getUserPreference("preferred_subgroups");
-    console.log("[SmartSearch] User preferred_subgroups:", prefSubgroupsStr);
-
-    if (prefSubgroupsStr) {
-      const subgroups = prefSubgroupsStr
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-      for (const subgroupId of subgroups) {
-        console.log(
-          "[SmartSearch] Searching Mikan RSS for subgroup:",
-          subgroupId,
-        );
-        const items = await this.fetchMikanRss(mikanId, subgroupId);
-        if (items && items.length > 0) {
-          console.log("[SmartSearch] Found results for subgroup:", subgroupId);
-          return items;
-        }
-      }
-      console.log(
-        "[SmartSearch] No results found for any preferred subgroups. Falling back to all.",
-      );
-    }
-
-    const items = await this.fetchMikanRss(mikanId);
-    console.log(
-      "[SmartSearch] Found results for all subgroups:",
-      $toString(items?.length || 0),
-    );
-    return items || [];
   }
 
   private async fetchMikanRss(
