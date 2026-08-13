@@ -239,7 +239,8 @@ class Provider {
         seeders: score, // Use seeders to store score for sorting later lol #Hackerman
         leechers: 0,
         downloadCount: 0,
-        link: $toString(item.link || "").trim(),
+        // link: $toString(item.link || "").trim(),
+        link: downloadUrl,
         downloadUrl: downloadUrl,
         resolution: meta.video_resolution || "",
         episodeNumber: parsedEpisode,
