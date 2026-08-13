@@ -216,8 +216,7 @@ class Provider {
     }
 
     // Construct the magnet link locally
-    const encodedName = encodeURIComponent(torrent.name);
-    torrent.magnetLink = `magnet:?xt=urn:btih:${infoHash}&dn=${encodedName}`;
+    torrent.magnetLink = `magnet:?xt=urn:btih:${infoHash}`;
 
     console.log("[Magnet] Successfully built magnet link.");
     return torrent.magnetLink;
