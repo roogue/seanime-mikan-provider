@@ -143,26 +143,31 @@ class Provider {
   }
 
   async getTorrentInfoHash(torrent: AnimeTorrent): Promise<string> {
-    return torrent.infoHash || "";
-  }
-
-  async getTorrentMagnetLink(torrent: AnimeTorrent): Promise<string> {
-    if (torrent.magnetLink) {
-      return torrent.magnetLink;
+    if (torrent.infoHash) {
+      return torrent.infoHash;
     }
 
     const targetUrl = torrent.downloadUrl || torrent.link;
     if (!targetUrl) {
-      console.log("[Magnet] No download URL provided.");
+      console.log("[InfoHash] No download URL provided.");
       return "";
     }
 
-    console.log("[Magnet] Fetching torrent file from:", targetUrl);
+    const urlHashMatch = targetUrl.match(/\/([a-f0-9]{40})\.torrent/i);
+    if (urlHashMatch && urlHashMatch[1]) {
+      console.log(
+        "[InfoHash] Fast Path: Extracted info hash directly from URL.",
+      );
+      torrent.infoHash = urlHashMatch[1].toLowerCase();
+      return torrent.infoHash;
+    }
+
+    console.log("[InfoHash] Fetching torrent file from:", targetUrl);
     try {
       const response = await fetch(targetUrl);
       if (!response.ok) {
         console.log(
-          "[Magnet] Failed to download torrent file. Status:",
+          "[InfoHash] Failed to download torrent file. Status:",
           $toString(response.status),
         );
         return "";
@@ -170,63 +175,76 @@ class Provider {
 
       const rawText = response.text();
 
-      // Bypass Buffer completely. Use CryptoJS to safely encode the binary text to Base64
+      // 1. Try the built-in utility
       const rawArray = CryptoJS.enc.Utf8.parse(rawText);
       const base64Content = CryptoJS.enc.Base64.stringify(rawArray);
 
-      let magnet = "";
-      try {
-        // @ts-ignore - Bypassing strict TS checks
-        magnet = $torrentUtils.getMagnetLinkFromTorrentData(base64Content);
-      } catch (err) {
-        console.log("[Magnet] $torrentUtils threw an error:", $toString(err));
+      // @ts-ignore
+      const utilityMagnet =
+        $torrentUtils.getMagnetLinkFromTorrentData(base64Content);
+      if (utilityMagnet) {
+        torrent.infoHash = utilityMagnet;
+        return utilityMagnet;
       }
 
-      if (magnet) {
-        console.log("[Magnet] Successfully extracted magnet link via utility.");
-        return magnet;
+      // 2. Try the Regex fallback for injected-hash files
+      console.log("[InfoHash] Utility failed, attempting regex fallback...");
+      const injectedHash = this.extractInjectedHash(base64Content);
+      if (injectedHash) {
+        torrent.infoHash = injectedHash.toLowerCase();
+        return torrent.infoHash;
       }
 
-      // Fallback for files with injected hashes
-      console.log("[Magnet] Utility failed, attempting regex fallback...");
-      return this.extractInjectedMagnet(base64Content, torrent.name);
+      return "";
     } catch (err) {
-      console.log("[Magnet] Error in magnet link generation:", $toString(err));
       return "";
     }
   }
 
+  async getTorrentMagnetLink(torrent: AnimeTorrent): Promise<string> {
+    if (torrent.magnetLink) {
+      return torrent.magnetLink;
+    }
+
+    // Call our internal method to ensure we have the hash
+    const infoHash = await this.getTorrentInfoHash(torrent);
+    if (!infoHash) {
+      console.log(
+        "[Magnet] Could not retrieve info hash to build magnet link.",
+      );
+      return "";
+    }
+
+    // Construct the magnet link locally
+    const encodedName = encodeURIComponent(torrent.name);
+    torrent.magnetLink = `magnet:?xt=urn:btih:${infoHash}&dn=${encodedName}`;
+
+    console.log("[Magnet] Successfully built magnet link.");
+    return torrent.magnetLink;
+  }
+
   // Fallback method to extract magnet link from specially formatted torrent files
   // Makin torrent are somehow injected with a 40-character hash in the binary data, so we can regex it out
-  private extractInjectedMagnet(
-    base64Data: string,
-    torrentName: string,
-  ): string {
+  private extractInjectedHash(base64Data: string): string {
     try {
       const binaryArray = CryptoJS.enc.Base64.parse(base64Data);
       const binaryString = CryptoJS.enc.Latin1.stringify(binaryArray);
 
-      // Search for the 40-character hex hash
       const hashMatch = binaryString.match(/4:hash40:([a-f0-9]{40})/i);
 
       if (hashMatch && hashMatch[1]) {
-        const infoHash = hashMatch[1];
-        console.log(
-          "[MagnetFallback] Successfully extracted injected hash:",
-          infoHash,
-        );
-
-        const encodedName = encodeURIComponent(torrentName);
-        return `magnet:?xt=urn:btih:${infoHash}&dn=${encodedName}`;
+        console.log("[InfoHashFallback] Successfully extracted injected hash.");
+        return hashMatch[1];
       }
     } catch (err) {
-      console.log("[MagnetFallback] Regex extraction failed:", $toString(err));
+      console.log(
+        "[InfoHashFallback] Regex extraction failed:",
+        $toString(err),
+      );
     }
 
-    console.log("[MagnetFallback] Could not find injected hash.");
     return "";
   }
-
   async getLatest(): Promise<AnimeTorrent[]> {
     return [];
   }
